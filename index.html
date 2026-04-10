@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>ClinicaAI • Clinician & Patient Portal with Registration</title>
+  <!-- Bootstrap 5 + Font Awesome + React -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { background: #eef2f5; font-family: 'Segoe UI', system-ui; }
+    .card-hover { transition: 0.2s; }
+    .risk-high { background: #ffebee; border-left: 5px solid #d32f2f; }
+    .risk-mid { background: #fff8e1; border-left: 5px solid #f57c00; }
+    .risk-low { background: #e8f5e9; border-left: 5px solid #2e7d32; }
+    .history-timeline { max-height: 250px; overflow-y: auto; font-size: 0.85rem; }
+    .shap-bar { height: 8px; border-radius: 20px; background: #1F6E8C; }
+    .nav-tabs .nav-link.active { background-color: #1F6E8C; color: white; }
+    .nav-tabs .nav-link { color: #1F6E8C; }
+    .image-thumb { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+  // ----------------------------- STORAGE KEYS -----------------------------
+  const STORAGE_CLINICIANS = 'clinica_clinicians';
+  const STORAGE_PATIENTS = 'clinica_patients';
+  const STORAGE_CLINICIAN_SESSION = 'clinica_clinician_session';
+  const STORAGE_PATIENT_SESSION = 'clinica_patient_session';
+  const STORAGE_REQUESTS = 'clinica_requests';
+
+  // ----------------------------- HELPERS ---------------------------------
+  const loadClinicians = () => {
+    const stored = localStorage.getItem(STORAGE_CLINICIANS);
+    if (stored) return JSON.parse(stored);
+    const defaultClinicians = [
+      { id: 1, username: 'dr.smith', password: 'pass123', fullName: 'Dr. Emily Smith', role: 'Physician' }
+    ];
+    localStorage.setItem(STORAGE_CLINICIANS, JSON.stringify(defaultClinicians));
+    return defaultClinicians;
+  };
+  const saveClinicians = (data) => localStorage.setItem(STORAGE_CLINICIANS, JSON.stringify(data));
+
+  const loadPatients = () => {
+    const stored = localStorage.getItem(STORAGE_PATIENTS);
+    if (stored) return JSON.parse(stored);
+    // Generate 5 demo patients with credentials
+    const demo = [];
+    for (let i = 1; i <= 5; i++) {
+      demo.push({
+        id: i,
+        name: `Demo Patient ${i}`,
+        username: `patient${i}`,
+        password: 'pass123',
+        age: 30 + i,
+        gender: i % 2 === 0 ? 'Female' : 'Male',
+        condition: ['Hypertension', 'Diabetes', 'Asthma', 'None'][i % 4],
+        attendingClinician: 'dr.smith',
+        systolic: 110 + i, glucose: 90 + i, heartRate: 75, bmi: 24,
+        wearableSteps: 5000 + i * 200, wearableSleep: 7,
+        history: [{ date: new Date().toISOString().slice(0,10), note: 'Initial record', updatedBy: 'system' }],
+        images: [], scans: []
+      });
+    }
+    localStorage.setItem(STORAGE_PATIENTS, JSON.stringify(demo));
+    return demo;
+  };
+  const savePatients = (data) => localStorage.setItem(STORAGE_PATIENTS, JSON.stringify(data));
+
+  const loadRequests = () => {
+    const stored = localStorage.getItem(STORAGE_REQUESTS);
+    return stored ? JSON.parse(stored) : [];
+  };
+  const saveRequests = (data) => localStorage.setItem(STORAGE_REQUESTS, JSON.stringify(data));
+
+  const addHistoryEntry = (patientId, note, updater) => {
+    const patients = loadPatients();
+    const idx = patients.findIndex(p => p.id === patientId);
+    if (idx !== -1) {
+      patients[idx].history = patients[idx].history || [];
+      patients[idx].history.push({ date: new Date().toISOString().slice(0,10), note, updatedBy: updater });
+      savePatients(patients);
+    }
+  };
+
+  // ML Risk Prediction
+  const predictRisk = (p) => {
+    let risk = (p.age > 60 ? 0.5 : p.age > 45 ? 0.3 : 0.1) +
+               (p.glucose > 140 ? 0.4 : p.glucose > 110 ? 0.2 : 0) +
+               (p.systolic > 140 ? 0.3 : p.systolic > 130 ? 0.15 : 0);
+    risk = Math.min(0.95, risk);
+    return { ensemble: risk, shap: [
+      { feature: 'Age', value: p.age > 60 ? 0.7 : p.age > 45 ? 0.4 : 0.1 },
+      { feature: 'Glucose', value: p.glucose > 140 ? 0.8 : p.glucose > 110 ? 0.4 : 0.1 },
+      { feature: 'BP', value: p.systolic > 140 ? 0.6 : 0.2 }
+    ]};
+  };
+
+  // Symptom checker
+  const symptomMap = {
+    'fever': 'Infection/COVID-19', 'cough': 'Respiratory infection', 'headache': 'Migraine/Hypertension',
+    'fatigue': 'Anemia/Diabetes', 'chest pain': 'Cardiac issue', 'shortness of breath': 'Asthma/COPD'
+  };
+  const predictDisease = (symptoms, patient) => {
+    if (!symptoms.length) return null;
+    let found = null;
+    for (let s of symptoms) {
+      if (symptomMap[s]) { found = symptomMap[s]; break; }
+    }
+    return found || 'Consult clinician';
+  };
+
+  // ----------------------------- LOGIN SCREEN (with Patient Registration) -----------------------------
+  const LoginScreen = ({ onLogin }) => {
+    const [type, setType] = React.useState('clinician');
+    const [mode, setMode] = React.useState('login'); // 'login' or 'register'
+    const [username, setUsername] = React.useState('');
+    const [password, setPassword] = React.useState('');
+    const [error, setError] = React.useState('');
+    // Registration fields
+    const [fullName, setFullName] = React.useState('');
+    const [age, setAge] = React.useState('');
+    const [gender, setGender] = React.useState('Male');
+    const [condition, setCondition] = React.useState('None');
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      setError('');
+      if (type === 'clinician') {
+        if (mode === 'register') {
+          const clinicians = loadClinicians();
+          if (clinicians.find(c => c.username === username)) {
+            setError('Username exists');
+            return;
+          }
+          const newId = clinicians.length + 1;
+          clinicians.push({ id: newId, username, password, fullName, role: 'Physician' });
+          saveClinicians(clinicians);
+          alert('Registration successful. Please login.');
+          setMode('login');
+        } else {
+          const clinicians = loadClinicians();
+          const user = clinicians.find(c => c.username === username && c.password === password);
+          if (user) {
+            localStorage.setItem(STORAGE_CLINICIAN_SESSION, JSON.stringify(user));
+            onLogin('clinician', user);
+          } else setError('Invalid credentials');
+        }
+      } else { // patient
+        if (mode === 'register') {
+          const patients = loadPatients();
+          if (patients.find(p => p.username === username)) {
+            setError('Username already taken');
+            return;
+          }
+          // Assign to first available clinician
+          const clinicians = loadClinicians();
+          const defaultClinician = clinicians.length > 0 ? clinicians[0].username : 'dr.smith';
+          const newPatient = {
+            id: Date.now(),
+            name: fullName,
+            username,
+            password,
+            age: parseInt(age),
+            gender,
+            condition: condition || 'None',
+            attendingClinician: defaultClinician,
+            systolic: 120, glucose: 100, heartRate: 75, bmi: 24,
+            wearableSteps: 5000, wearableSleep: 7,
+            history: [{ date: new Date().toISOString().slice(0,10), note: 'Patient self-registered', updatedBy: 'self' }],
+            images: [], scans: []
+          };
+          patients.push(newPatient);
+          savePatients(patients);
+          alert('Registration successful. Please login.');
+          setMode('login');
+        } else {
+          const patients = loadPatients();
+          const patient = patients.find(p => p.username === username && p.password === password);
+          if (patient) {
+            localStorage.setItem(STORAGE_PATIENT_SESSION, JSON.stringify({ id: patient.id, name: patient.name }));
+            onLogin('patient', patient);
+          } else setError('Invalid credentials');
+        }
+      }
+    };
+
+    return (
+      <div className="container d-flex justify-content-center align-items-center min-vh-100">
+        <div className="card shadow p-4" style={{ width: '450px' }}>
+          <h3 className="text-center mb-3"><i className="fas fa-hospital-user"></i> ClinicaAI</h3>
+          <div className="btn-group w-100 mb-3">
+            <button className={`btn ${type === 'clinician' ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => { setType('clinician'); setMode('login'); setError(''); }}>Clinician</button>
+            <button className={`btn ${type === 'patient' ? 'btn-primary' : 'btn-outline-secondary'}`} onClick={() => { setType('patient'); setMode('login'); setError(''); }}>Patient</button>
+          </div>
+          <div className="text-center mb-2">
+            <button className="btn btn-sm btn-link" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
+              {mode === 'login' ? `Create new ${type} account` : `Back to ${type} login`}
+            </button>
+          </div>
+          <form onSubmit={handleSubmit}>
+            {mode === 'register' && type === 'patient' && (
+              <>
+                <input type="text" className="form-control mb-2" placeholder="Full Name" value={fullName} onChange={e=>setFullName(e.target.value)} required />
+                <input type="number" className="form-control mb-2" placeholder="Age" value={age} onChange={e=>setAge(e.target.value)} required />
+                <select className="form-select mb-2" value={gender} onChange={e=>setGender(e.target.value)}>
+                  <option>Male</option><option>Female</option><option>Other</option>
+                </select>
+                <input type="text" className="form-control mb-2" placeholder="Primary condition (optional)" value={condition} onChange={e=>setCondition(e.target.value)} />
+              </>
+            )}
+            <input type="text" className="form-control mb-2" placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} required />
+            <input type="password" className="form-control mb-2" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} required />
+            {mode === 'register' && type === 'clinician' && (
+              <input type="text" className="form-control mb-2" placeholder="Full Name" value={fullName} onChange={e=>setFullName(e.target.value)} required />
+            )}
+            {error && <div className="alert alert-danger py-1">{error}</div>}
+            <button type="submit" className="btn btn-primary w-100">{mode === 'login' ? 'Login' : 'Register'}</button>
+          </form>
+          {type === 'patient' && mode === 'login' && (
+            <div className="text-center mt-3 small text-muted">Demo patients: patient1/patient2... with password 'pass123'</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ----------------------------- CLINICIAN DASHBOARD (same as before, included) -----------------------------
+  const ClinicianDashboard = ({ clinician, onLogout }) => {
+    const [patients, setPatients] = React.useState([]);
+    const [search, setSearch] = React.useState('');
+    const [selectedPatient, setSelectedPatient] = React.useState(null);
+    const [showImages, setShowImages] = React.useState(false);
+    const [currentImages, setCurrentImages] = React.useState([]);
+    const [imageType, setImageType] = React.useState('');
+    const [requests, setRequests] = React.useState([]);
+
+    const refresh = () => {
+      setPatients(loadPatients());
+      setRequests(loadRequests().filter(r => r.clinicianUsername === clinician.username));
+    };
+    React.useEffect(() => { refresh(); }, []);
+
+    const addPatient = (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const newPatient = {
+        id: Date.now(),
+        name: form.name.value,
+        username: form.username.value,
+        password: form.password.value,
+        age: parseInt(form.age.value),
+        gender: form.gender.value,
+        condition: form.condition.value,
+        attendingClinician: clinician.username,
+        systolic: 120, glucose: 100, heartRate: 75, bmi: 24,
+        wearableSteps: 5000, wearableSleep: 7,
+        history: [{ date: new Date().toISOString().slice(0,10), note: 'Created by clinician', updatedBy: clinician.fullName }],
+        images: [], scans: []
+      };
+      const all = loadPatients();
+      if (all.find(p => p.username === newPatient.username)) { alert('Username exists'); return; }
+      all.push(newPatient);
+      savePatients(all);
+      refresh();
+      bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
+      form.reset();
+    };
+
+    const updatePatient = (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const updated = {
+        name: form.name.value,
+        age: parseInt(form.age.value),
+        gender: form.gender.value,
+        condition: form.condition.value,
+        systolic: parseInt(form.systolic.value),
+        glucose: parseInt(form.glucose.value),
+        heartRate: parseInt(form.heartRate.value),
+        bmi: parseFloat(form.bmi.value),
+        wearableSteps: parseInt(form.steps.value),
+        wearableSleep: parseFloat(form.sleep.value)
+      };
+      let all = loadPatients();
+      all = all.map(p => p.id === selectedPatient.id ? { ...p, ...updated } : p);
+      savePatients(all);
+      addHistoryEntry(selectedPatient.id, `Clinical data updated by ${clinician.fullName}`, clinician.fullName);
+      refresh();
+      bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+    };
+
+    const deletePatient = (id) => {
+      if (confirm('Delete patient permanently?')) {
+        let all = loadPatients();
+        all = all.filter(p => p.id !== id);
+        savePatients(all);
+        refresh();
+      }
+    };
+
+    const addNote = (pid, note) => {
+      if (note.trim()) {
+        addHistoryEntry(pid, note, clinician.fullName);
+        refresh();
+      }
+    };
+
+    const uploadFile = (patientId, fileInput, type) => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const all = loadPatients();
+        const idx = all.findIndex(p => p.id === patientId);
+        if (idx !== -1) {
+          const asset = { id: Date.now(), name: file.name, data: e.target.result, type, uploadedBy: clinician.fullName, date: new Date().toISOString() };
+          if (type === 'xray') all[idx].images = [...(all[idx].images || []), asset];
+          else all[idx].scans = [...(all[idx].scans || []), asset];
+          savePatients(all);
+          refresh();
+          alert('Uploaded successfully');
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+
+    const viewMedia = (patient, type) => {
+      const media = type === 'xray' ? (patient.images || []) : (patient.scans || []);
+      setCurrentImages(media);
+      setImageType(type);
+      setSelectedPatient(patient);
+      setShowImages(true);
+      new bootstrap.Modal(document.getElementById('imageModal')).show();
+    };
+
+    const replyToRequest = (req, reply) => {
+      if (!reply.trim()) return;
+      let allReqs = loadRequests();
+      allReqs = allReqs.map(r => r.id === req.id ? { ...r, status: 'answered', reply, repliedAt: new Date().toISOString(), repliedBy: clinician.fullName } : r);
+      saveRequests(allReqs);
+      refresh();
+      alert('Reply sent');
+    };
+
+    const filtered = patients.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+
+    return (
+      <div className="container-fluid px-3">
+        <div className="d-flex justify-content-between flex-wrap mb-3">
+          <div className="input-group w-auto"><span className="input-group-text"><i className="fas fa-search"></i></span>
+            <input type="text" className="form-control" placeholder="Search patient" value={search} onChange={e=>setSearch(e.target.value)} />
+          </div>
+          <button className="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal"><i className="fas fa-plus"></i> New Patient</button>
+          <button className="btn btn-outline-danger" onClick={onLogout}>Logout</button>
+        </div>
+
+        {requests.filter(r => r.status === 'pending').length > 0 && (
+          <div className="card mb-4 border-warning">
+            <div className="card-header bg-warning">Pending Patient Requests</div>
+            <div className="card-body">
+              {requests.filter(r => r.status === 'pending').map(req => (
+                <div key={req.id} className="border-bottom pb-2 mb-2">
+                  <strong>{req.patientName}</strong> <small>{new Date(req.createdAt).toLocaleString()}</small>
+                  <p>{req.message}</p>
+                  <div className="input-group input-group-sm">
+                    <input type="text" className="form-control" id={`reply-${req.id}`} placeholder="Type reply..." />
+                    <button className="btn btn-success btn-sm" onClick={() => { const inp = document.getElementById(`reply-${req.id}`); replyToRequest(req, inp.value); inp.value = ''; }}>Send Reply</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="row">
+          {filtered.map(p => {
+            const risk = predictRisk(p);
+            const riskClass = risk.ensemble > 0.6 ? 'risk-high' : (risk.ensemble > 0.3 ? 'risk-mid' : 'risk-low');
+            return (
+              <div className="col-md-6 col-lg-4 mb-3" key={p.id}>
+                <div className={`card h-100 ${riskClass}`}>
+                  <div className="card-body">
+                    <h5>{p.name} <span className="badge bg-secondary">ID: {p.id}</span></h5>
+                    <p>{p.gender}, {p.age} yrs<br/>Condition: {p.condition}<br/>Risk: <strong>{(risk.ensemble*100).toFixed(1)}%</strong></p>
+                    <div className="d-flex flex-wrap gap-2 mb-2">
+                      <button className="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal" onClick={() => setSelectedPatient(p)}>Edit</button>
+                      <button className="btn btn-sm btn-outline-danger" onClick={() => deletePatient(p.id)}>Delete</button>
+                      <button className="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#historyModal" onClick={() => setSelectedPatient(p)}>History</button>
+                      <button className="btn btn-sm btn-secondary" onClick={() => viewMedia(p, 'xray')}>X-rays ({p.images?.length||0})</button>
+                      <button className="btn btn-sm btn-secondary" onClick={() => viewMedia(p, 'scan')}>Scans ({p.scans?.length||0})</button>
+                    </div>
+                    <div className="input-group input-group-sm">
+                      <input type="text" className="form-control" id={`note-${p.id}`} placeholder="Add clinical note" />
+                      <button className="btn btn-outline-success" onClick={() => { const inp = document.getElementById(`note-${p.id}`); addNote(p.id, inp.value); inp.value = ''; }}>Add</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Add Patient Modal */}
+        <div className="modal fade" id="addModal" tabIndex="-1"><div className="modal-dialog"><div className="modal-content">
+          <div className="modal-header"><h5>New Patient</h5><button type="button" className="btn-close" data-bs-dismiss="modal"></button></div>
+          <form onSubmit={addPatient}><div className="modal-body">
+            <input type="text" name="name" className="form-control mb-2" placeholder="Full name" required />
+            <input type="text" name="username" className="form-control mb-2" placeholder="Username (login)" required />
+            <input type="password" name="password" className="form-control mb-2" placeholder="Password" required />
+            <input type="number" name="age" className="form-control mb-2" placeholder="Age" required />
+            <select name="gender" className="form-select mb-2"><option>Male</option><option>Female</option></select>
+            <input type="text" name="condition" className="form-control mb-2" placeholder="Primary condition" />
+          </div><div className="modal-footer"><button type="submit" className="btn btn-primary">Create</button></div></form>
+        </div></div></div>
+
+        {/* Edit Patient Modal */}
+        <div className="modal fade" id="editModal" tabIndex="-1"><div className="modal-dialog"><div className="modal-content">
+          <div className="modal-header"><h5>Edit Patient</h5><button type="button" className="btn-close" data-bs-dismiss="modal"></button></div>
+          {selectedPatient && <form onSubmit={updatePatient}><div className="modal-body">
+            <input type="text" name="name" defaultValue={selectedPatient.name} className="form-control mb-2" required />
+            <input type="number" name="age" defaultValue={selectedPatient.age} className="form-control mb-2" required />
+            <select name="gender" defaultValue={selectedPatient.gender} className="form-select mb-2"><option>Male</option><option>Female</option></select>
+            <input type="text" name="condition" defaultValue={selectedPatient.condition} className="form-control mb-2" />
+            <hr/><h6>Clinical Data</h6>
+            <input type="number" name="systolic" defaultValue={selectedPatient.systolic} className="form-control mb-2" placeholder="Systolic BP" />
+            <input type="number" name="glucose" defaultValue={selectedPatient.glucose} className="form-control mb-2" placeholder="Glucose" />
+            <input type="number" name="heartRate" defaultValue={selectedPatient.heartRate} className="form-control mb-2" placeholder="Heart Rate" />
+            <input type="number" step="0.1" name="bmi" defaultValue={selectedPatient.bmi} className="form-control mb-2" placeholder="BMI" />
+            <input type="number" name="steps" defaultValue={selectedPatient.wearableSteps} className="form-control mb-2" placeholder="Daily Steps" />
+            <input type="number" step="0.1" name="sleep" defaultValue={selectedPatient.wearableSleep} className="form-control mb-2" placeholder="Sleep Hours" />
+          </div><div className="modal-footer"><button type="submit" className="btn btn-primary">Save</button></div></form>}
+        </div></div></div>
+
+        {/* History Modal */}
+        <div className="modal fade" id="historyModal" tabIndex="-1"><div className="modal-dialog"><div className="modal-content">
+          <div className="modal-header"><h5>Patient History</h5><button type="button" className="btn-close" data-bs-dismiss="modal"></button></div>
+          <div className="modal-body">
+            {selectedPatient && (selectedPatient.history || []).slice().reverse().map((h,i) => (
+              <div key={i} className="border-bottom pb-2 mb-2"><strong>{h.date}</strong> by {h.updatedBy}<br/>{h.note}</div>
+            ))}
+          </div>
+        </div></div></div>
+
+        {/* Image Viewer Modal */}
+        <div className="modal fade" id="imageModal" tabIndex="-1"><div className="modal-dialog modal-lg"><div className="modal-content">
+          <div className="modal-header"><h5>{imageType === 'xray' ? 'X-rays' : 'Scans'}</h5><button type="button" className="btn-close" data-bs-dismiss="modal"></button></div>
+          <div className="modal-body">
+            <div className="row">
+              {currentImages.map(img => (
+                <div className="col-4 mb-2" key={img.id}>
+                  <img src={img.data} className="image-thumb" />
+                  <div className="small">{img.name}</div>
+                </div>
+              ))}
+            </div>
+            <hr />
+            <label>Upload new {imageType === 'xray' ? 'X-ray' : 'Scan'}:</label>
+            <input type="file" className="form-control mb-2" accept="image/*" id="uploadFile" />
+            <button className="btn btn-primary" onClick={() => { const inp = document.getElementById('uploadFile'); if(selectedPatient) uploadFile(selectedPatient.id, inp, imageType); }}>Upload</button>
+          </div>
+        </div></div></div>
+      </div>
+    );
+  };
+
+  // ----------------------------- PATIENT PORTAL -----------------------------
+  const PatientPortal = ({ patient, onLogout }) => {
+    const [currentPatient, setCurrentPatient] = React.useState(patient);
+    const [symptoms, setSymptoms] = React.useState('');
+    const [prediction, setPrediction] = React.useState(null);
+    const [requestMsg, setRequestMsg] = React.useState('');
+    const [requestStatus, setRequestStatus] = React.useState('');
+    const [reply, setReply] = React.useState(null);
+
+    const refresh = () => {
+      const all = loadPatients();
+      const updated = all.find(p => p.id === currentPatient.id);
+      if (updated) setCurrentPatient(updated);
+      const reqs = loadRequests().filter(r => r.patientId === currentPatient.id && r.status === 'answered');
+      if (reqs.length) setReply(reqs[reqs.length-1]);
+    };
+    React.useEffect(() => { refresh(); const interval = setInterval(refresh, 5000); return () => clearInterval(interval); }, []);
+
+    const risk = predictRisk(currentPatient);
+    const handleSymptomCheck = () => {
+      const symList = symptoms.split(',').map(s => s.trim().toLowerCase());
+      setPrediction(predictDisease(symList, currentPatient));
+    };
+    const sendRequest = () => {
+      if (!requestMsg.trim()) return;
+      const reqs = loadRequests();
+      reqs.push({ id: Date.now(), patientId: currentPatient.id, patientName: currentPatient.name, clinicianUsername: currentPatient.attendingClinician, message: requestMsg, status: 'pending', createdAt: new Date().toISOString() });
+      saveRequests(reqs);
+      setRequestStatus('Request sent! Your clinician will reply within a day.');
+      setRequestMsg('');
+      setTimeout(() => setRequestStatus(''), 4000);
+    };
+
+    return (
+      <div className="container-fluid px-3">
+        <nav className="navbar navbar-light bg-white rounded-3 shadow-sm mb-4 p-3">
+          <span className="navbar-brand"><i className="fas fa-user-injured"></i> Patient Portal - {currentPatient.name}</span>
+          <button className="btn btn-outline-danger" onClick={onLogout}>Logout</button>
+        </nav>
+        <div className="row">
+          <div className="col-md-6">
+            <div className="card mb-3"><div className="card-body">
+              <h5>Your Health Summary</h5>
+              <p>Age: {currentPatient.age} | BMI: {currentPatient.bmi}<br/>Condition: {currentPatient.condition}<br/>BP: {currentPatient.systolic}/{currentPatient.diastolic}<br/>Glucose: {currentPatient.glucose}</p>
+              <p>Readmission Risk: <strong>{(risk.ensemble*100).toFixed(1)}%</strong></p>
+            </div></div>
+          </div>
+          <div className="col-md-6">
+            <div className="card mb-3"><div className="card-body">
+              <h5>Wearable Data</h5>
+              <p>Steps: {currentPatient.wearableSteps} | Sleep: {currentPatient.wearableSleep} hrs</p>
+            </div></div>
+          </div>
+        </div>
+
+        <div className="card mb-3"><div className="card-body">
+          <h5>Your Medical History</h5>
+          <div className="history-timeline">
+            {(currentPatient.history || []).slice().reverse().map((h,i) => (
+              <div key={i}><strong>{h.date}</strong> by {h.updatedBy}<br/>{h.note}<hr/></div>
+            ))}
+          </div>
+        </div></div>
+
+        {(currentPatient.images?.length > 0 || currentPatient.scans?.length > 0) && (
+          <div className="card mb-3"><div className="card-body">
+            <h5>Your X-rays & Scans</h5>
+            <div className="row">
+              {currentPatient.images?.map(img => <div className="col-3" key={img.id}><img src={img.data} className="image-thumb"/><div className="small">{img.name}</div></div>)}
+              {currentPatient.scans?.map(scan => <div className="col-3" key={scan.id}><img src={scan.data} className="image-thumb"/><div className="small">{scan.name}</div></div>)}
+            </div>
+          </div></div>
+        )}
+
+        <div className="card mb-3"><div className="card-body">
+          <h5>Symptom Checker</h5>
+          <input type="text" className="form-control mb-2" placeholder="e.g., fever, cough, headache" value={symptoms} onChange={e=>setSymptoms(e.target.value)} />
+          <button className="btn btn-primary" onClick={handleSymptomCheck}>Predict</button>
+          {prediction && <div className="alert alert-info mt-2">Possible condition: {prediction}</div>}
+        </div></div>
+
+        <div className="card"><div className="card-body">
+          <h5>Ask Your Clinician</h5>
+          <textarea className="form-control mb-2" rows="2" placeholder="Describe your concern..." value={requestMsg} onChange={e=>setRequestMsg(e.target.value)}></textarea>
+          <button className="btn btn-success" onClick={sendRequest}>Send Request</button>
+          {requestStatus && <div className="alert alert-success mt-2">{requestStatus}</div>}
+          {reply && <div className="alert alert-secondary mt-2"><strong>Clinician's reply:</strong><br/>{reply.reply}</div>}
+        </div></div>
+      </div>
+    );
+  };
+
+  // ----------------------------- INTEROP & XAI (Clinician only) -----------------------------
+  const InteropLog = () => (
+    <div className="border rounded p-3 bg-light">
+      <h6><i className="fas fa-exchange-alt"></i> FHIR/HL7 Events</h6>
+      <ul className="list-unstyled small">
+        <li><i className="fas fa-check-circle text-success"></i> FHIR GET /Patient - 200 OK</li>
+        <li><i className="fas fa-check-circle text-success"></i> HL7 ADT^A01 mapped</li>
+        <li><i className="fas fa-check-circle text-success"></i> Data cleaning active</li>
+      </ul>
+    </div>
+  );
+
+  const ExplainableAI = ({ patients }) => {
+    const [selected, setSelected] = React.useState(null);
+    React.useEffect(() => { if(patients.length) setSelected(patients[0]); }, [patients]);
+    if (!selected) return <div>Select a patient</div>;
+    const { shap } = predictRisk(selected);
+    return (
+      <div>
+        <select className="form-select mb-3" onChange={e=>setSelected(patients.find(p=>p.id==e.target.value))}>
+          {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <div className="card p-3">
+          <h6>Feature Impact (SHAP)</h6>
+          {shap.map(f => <div key={f.feature} className="mb-2">{f.feature}<div className="shap-bar" style={{width: `${f.value*100}%`}}></div></div>)}
+        </div>
+      </div>
+    );
+  };
+
+  // ----------------------------- MAIN APP ROUTER -----------------------------
+  const App = () => {
+    const [clinician, setClinician] = React.useState(null);
+    const [patient, setPatient] = React.useState(null);
+    const [activeTab, setActiveTab] = React.useState('dashboard');
+    const [patients, setPatients] = React.useState([]);
+
+    React.useEffect(() => {
+      const cSess = localStorage.getItem(STORAGE_CLINICIAN_SESSION);
+      if (cSess) setClinician(JSON.parse(cSess));
+      const pSess = localStorage.getItem(STORAGE_PATIENT_SESSION);
+      if (pSess) {
+        const pData = JSON.parse(pSess);
+        const full = loadPatients().find(p => p.id === pData.id);
+        if (full) setPatient(full);
+      }
+    }, []);
+
+    if (clinician) {
+      React.useEffect(() => {
+        const interval = setInterval(() => setPatients(loadPatients()), 5000);
+        return () => clearInterval(interval);
+      }, []);
+      const allPatients = patients.length ? patients : loadPatients();
+      return (
+        <div className="container-fluid px-3 py-3">
+          <nav className="navbar navbar-light bg-white rounded-3 shadow-sm mb-4 p-3">
+            <span className="navbar-brand">ClinicaAI - Clinician: {clinician.fullName}</span>
+            <button className="btn btn-outline-danger" onClick={() => { localStorage.removeItem(STORAGE_CLINICIAN_SESSION); setClinician(null); }}>Logout</button>
+          </nav>
+          <ul className="nav nav-tabs mb-3">
+            <li className="nav-item"><button className={`nav-link ${activeTab==='dashboard'?'active':''}`} onClick={()=>setActiveTab('dashboard')}>Dashboard</button></li>
+            <li className="nav-item"><button className={`nav-link ${activeTab==='interop'?'active':''}`} onClick={()=>setActiveTab('interop')}>Interoperability</button></li>
+            <li className="nav-item"><button className={`nav-link ${activeTab==='xai'?'active':''}`} onClick={()=>setActiveTab('xai')}>Explainable AI</button></li>
+          </ul>
+          {activeTab === 'dashboard' && <ClinicianDashboard clinician={clinician} onLogout={() => { localStorage.removeItem(STORAGE_CLINICIAN_SESSION); setClinician(null); }} />}
+          {activeTab === 'interop' && <InteropLog />}
+          {activeTab === 'xai' && <ExplainableAI patients={allPatients} />}
+        </div>
+      );
+    }
+    if (patient) {
+      return <PatientPortal patient={patient} onLogout={() => { localStorage.removeItem(STORAGE_PATIENT_SESSION); setPatient(null); }} />;
+    }
+    return <LoginScreen onLogin={(type, user) => { if(type === 'clinician') setClinician(user); else setPatient(user); }} />;
+  };
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
