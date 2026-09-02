@@ -1,0 +1,9 @@
+Backend/venv/
+Backend/__pycache__/
+Backend/models/__pycache__/
+Backend/routes/__pycache__/
+Backend/data/Diseases_and_Symptoms_dataset.csv
+Backend/models/trained_models/*.pkl
+*.pyc
+node_modules/
+dist/
