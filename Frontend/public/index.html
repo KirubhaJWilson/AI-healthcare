@@ -3,16 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Clinica AI • Healthcare Platform</title>
+  <title>Clinica AI • Medical Intelligence & Diagnostics Platform</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
   <style>
-    body { background-color: #f4f6f9; font-family: 'Segoe UI', system-ui; }
-    .hero-section { background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%); color: white; padding: 60px 0; border-radius: 0 0 20px 20px; }
-    .symptom-badge { cursor: pointer; font-size: 0.9rem; margin: 3px; }
+    body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .hero-section { background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%); color: white; padding: 65px 0; border-radius: 0 0 20px 20px; }
+    .symptom-badge { cursor: pointer; font-size: 0.85rem; margin: 3px; transition: all 0.2s ease; display: inline-block; }
+    .symptom-badge:hover { transform: scale(1.05); }
+    .card-hover { transition: transform 0.2s, box-shadow 0.2s; }
+    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important; }
+    .nav-pills .nav-link.active { background-color: #0d6efd; }
   </style>
 </head>
 <body>
@@ -21,17 +25,131 @@
   const { useState, useEffect } = React;
   const API_URL = '/api';
 
-  const App = () => {
-    const [activeTab, setActiveTab] = useState('home');
-    const [symptoms, setSymptoms] = useState([]);
+  const fetchAPI = async (endpoint, options = {}) => {
+    try {
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        ...options
+      });
+      return await res.json();
+    } catch (err) {
+      console.error(`API Error (${endpoint}):`, err);
+      throw err;
+    }
+  };
+
+  const Navbar = ({ activeTab, setActiveTab, user, setUser }) => {
+    return (
+      <nav className="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
+        <div className="container">
+          <a className="navbar-brand fw-bold d-flex align-items-center" href="#" onClick={() => setActiveTab('home')}>
+            <i className="fas fa-heartpulse me-2 text-primary fa-lg"></i>
+            <span>Clinica <span className="text-primary">AI</span></span>
+          </a>
+          <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span className="navbar-toggler-icon"></span>
+          </button>
+          <div className="collapse navbar-collapse" id="navbarNav">
+            <ul className="navbar-nav me-auto">
+              <li className="nav-item">
+                <button className={`nav-link btn btn-link ${activeTab === 'home' ? 'active text-white fw-bold' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
+              </li>
+              <li className="nav-item">
+                <button className={`nav-link btn btn-link ${activeTab === 'checker' || activeTab === 'result' ? 'active text-white fw-bold' : ''}`} onClick={() => setActiveTab('checker')}>Symptom Checker</button>
+              </li>
+              <li className="nav-item">
+                <button className={`nav-link btn btn-link ${activeTab === 'patient' ? 'active text-white fw-bold' : ''}`} onClick={() => setActiveTab('patient')}>Patient Portal</button>
+              </li>
+              <li className="nav-item">
+                <button className={`nav-link btn btn-link ${activeTab === 'doctor' ? 'active text-white fw-bold' : ''}`} onClick={() => setActiveTab('doctor')}>Doctor Portal</button>
+              </li>
+            </ul>
+            <div className="d-flex align-items-center">
+              {user ? (
+                <div className="dropdown">
+                  <button className="btn btn-outline-light btn-sm dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown">
+                    <i className="fas fa-user-circle me-1"></i> {user.name || user.email} ({user.role})
+                  </button>
+                  <ul className="dropdown-menu dropdown-menu-end">
+                    <li><button className="dropdown-item" onClick={() => setUser(null)}><i className="fas fa-sign-out-alt me-2"></i>Logout</button></li>
+                  </ul>
+                </div>
+              ) : (
+                <button className="btn btn-primary btn-sm rounded-pill px-3" onClick={() => setActiveTab('auth')}>
+                  <i className="fas fa-sign-in-alt me-1"></i> Login / Register
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </nav>
+    );
+  };
+
+  const Home = ({ setActiveTab }) => {
+    return (
+      <div>
+        <div className="hero-section text-center">
+          <div className="container">
+            <h1 className="display-4 fw-bold mb-3"><i className="fas fa-brain me-2"></i>AI Medical Diagnostics Platform</h1>
+            <p className="lead mx-auto mb-4" style={{maxWidth: '750px'}}>Covering 100 clinical diseases and 230 symptoms with machine learning disease prediction, treatment protocols, and electronic health record integration.</p>
+            <div className="d-flex justify-content-center gap-3">
+              <button className="btn btn-light btn-lg fw-bold text-primary px-4 shadow" onClick={() => setActiveTab('checker')}>
+                <i className="fas fa-stethoscope me-2"></i> Start Symptom Checker
+              </button>
+              <button className="btn btn-outline-light btn-lg px-4" onClick={() => setActiveTab('patient')}>
+                <i className="fas fa-user-injured me-2"></i> Patient Health Hub
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="container my-5">
+          <div className="row g-4">
+            <div className="col-md-4">
+              <div className="card h-100 shadow-sm border-0 card-hover p-3 text-center">
+                <div className="card-body">
+                  <div className="text-primary mb-3"><i className="fas fa-microscope fa-3x"></i></div>
+                  <h5 className="card-title fw-bold">100 Disease ML Ensemble</h5>
+                  <p className="card-text text-muted">Trained on 96,000+ clinical records covering 230 distinct medical symptoms.</p>
+                </div>
+              </div>
+            </div>
+            <div className="col-md-4">
+              <div className="card h-100 shadow-sm border-0 card-hover p-3 text-center">
+                <div className="card-body">
+                  <div className="text-success mb-3"><i className="fas fa-notes-medical fa-3x"></i></div>
+                  <h5 className="card-title fw-bold">Integrated Treatment Plans</h5>
+                  <p className="card-text text-muted">Includes disease descriptions, precautions, dietary recommendations, medications, and workouts.</p>
+                </div>
+              </div>
+            </div>
+            <div className="col-md-4">
+              <div className="card h-100 shadow-sm border-0 card-hover p-3 text-center">
+                <div className="card-body">
+                  <div className="text-warning mb-3"><i className="fas fa-file-invoice-dollar fa-3x"></i></div>
+                  <h5 className="card-title fw-bold">FHIR Standards Ready</h5>
+                  <p className="card-text text-muted">Supports HL7 FHIR Patient resource formatting for hospital EHR compatibility.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const SymptomChecker = ({ onResult }) => {
+    const [allSymptoms, setAllSymptoms] = useState([]);
     const [selectedSymptoms, setSelectedSymptoms] = useState([]);
-    const [prediction, setPrediction] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
     useEffect(() => {
-      fetch(`${API_URL}/symptoms`)
-        .then(res => res.json())
-        .then(data => setSymptoms(data.symptoms || []))
-        .catch(err => console.log(err));
+      fetchAPI('/symptoms')
+        .then(data => setAllSymptoms(data.symptoms || []))
+        .catch(() => setError('Failed to load symptoms list.'));
     }, []);
 
     const toggleSymptom = (sym) => {
@@ -43,74 +161,478 @@
     };
 
     const handlePredict = async () => {
-      if (!selectedSymptoms.length) return;
-      const res = await fetch(`${API_URL}/predict`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ symptoms: selectedSymptoms })
-      });
-      const data = await res.json();
-      setPrediction(data);
+      if (!selectedSymptoms.length) {
+        setError('Please select at least one symptom');
+        return;
+      }
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetchAPI('/predict', {
+          method: 'POST',
+          body: JSON.stringify({ symptoms: selectedSymptoms })
+        });
+        setLoading(false);
+        onResult(res, selectedSymptoms);
+      } catch (err) {
+        setLoading(false);
+        setError('Error making prediction. Ensure backend is running.');
+      }
     };
 
-    return (
-      <div className="min-vh-100 d-flex flex-column">
-        <nav className="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
-          <div className="container">
-            <a className="navbar-brand fw-bold" href="#"><i className="fas fa-heartpulse text-primary me-2"></i>Clinica AI</a>
-            <div className="navbar-nav ms-auto">
-              <button className={`nav-link btn btn-link ${activeTab === 'home' ? 'active text-white' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
-              <button className={`nav-link btn btn-link ${activeTab === 'checker' ? 'active text-white' : ''}`} onClick={() => setActiveTab('checker')}>Symptom Checker</button>
-            </div>
-          </div>
-        </nav>
+    const filtered = allSymptoms.filter(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
 
-        <main className="flex-grow-1">
-          {activeTab === 'home' && (
-            <div className="hero-section text-center">
-              <div className="container">
-                <h1 className="display-4 fw-bold">AI-Powered Healthcare Diagnostic Platform</h1>
-                <p className="lead mt-3">Machine learning disease prediction, medical recommendations, and patient portal.</p>
-                <button className="btn btn-light btn-lg fw-bold text-primary mt-3" onClick={() => setActiveTab('checker')}>Start Symptom Checker</button>
+    return (
+      <div className="container my-4">
+        <div className="card shadow border-0">
+          <div className="card-header bg-primary text-white p-3 d-flex justify-content-between align-items-center">
+            <h4 className="mb-0"><i className="fas fa-stethoscope me-2"></i>AI Symptom Diagnostics (230 Symptoms)</h4>
+            <span className="badge bg-light text-primary fw-bold">{allSymptoms.length} Available Symptoms</span>
+          </div>
+          <div className="card-body p-4">
+            {error && <div className="alert alert-danger">{error}</div>}
+
+            <div className="mb-4">
+              <label className="form-label fw-bold">1. Search & Select Symptoms:</label>
+              <input
+                type="text"
+                className="form-control form-control-lg mb-3"
+                placeholder="Search symptoms (e.g. fever, chest pain, anxiety, shortness of breath)..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+              <div className="p-3 border rounded bg-light" style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                {filtered.map(sym => {
+                  const isSelected = selectedSymptoms.includes(sym);
+                  const display = sym.replace(/_/g, ' ');
+                  return (
+                    <span
+                      key={sym}
+                      className={`badge symptom-badge p-2 ${isSelected ? 'bg-primary' : 'bg-secondary'}`}
+                      onClick={() => toggleSymptom(sym)}
+                    >
+                      <i className={`fas ${isSelected ? 'fa-check-circle' : 'fa-plus-circle'} me-1`}></i>
+                      {display}
+                    </span>
+                  );
+                })}
               </div>
             </div>
-          )}
 
-          {activeTab === 'checker' && (
-            <div className="container my-4">
-              <div className="card shadow border-0 p-4">
-                <h3 className="mb-3"><i className="fas fa-stethoscope text-primary me-2"></i>Symptom Checker</h3>
-                <div className="mb-3">
-                  <label className="fw-bold mb-2">Select Symptoms:</label>
-                  <div className="p-3 border rounded bg-light" style={{maxHeight: '200px', overflowY: 'auto'}}>
-                    {symptoms.map(s => (
-                      <span
-                        key={s}
-                        className={`badge symptom-badge p-2 ${selectedSymptoms.includes(s) ? 'bg-primary' : 'bg-secondary'}`}
-                        onClick={() => toggleSymptom(s)}
-                      >
-                        {s.replace(/_/g, ' ')}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <button className="btn btn-primary btn-lg w-100 fw-bold" onClick={handlePredict} disabled={!selectedSymptoms.length}>Predict Condition</button>
-
-                {prediction && prediction.predictions && (
-                  <div className="mt-4 p-3 border rounded bg-white">
-                    <h4 className="text-success fw-bold">Top Prediction: {prediction.predictions[0].disease} ({prediction.predictions[0].probability}%)</h4>
-                    <p className="text-muted">{prediction.predictions[0].description}</p>
-                  </div>
+            <div className="mb-4">
+              <label className="form-label fw-bold">2. Selected Symptoms ({selectedSymptoms.length}):</label>
+              <div className="p-3 border rounded bg-white" style={{minHeight: '60px'}}>
+                {selectedSymptoms.length === 0 ? (
+                  <span className="text-muted">No symptoms selected yet. Click from above to select.</span>
+                ) : (
+                  selectedSymptoms.map(sym => (
+                    <span key={sym} className="badge bg-success p-2 me-2 mb-2">
+                      {sym.replace(/_/g, ' ')}
+                      <i className="fas fa-times ms-2" style={{cursor:'pointer'}} onClick={() => toggleSymptom(sym)}></i>
+                    </span>
+                  ))
                 )}
               </div>
             </div>
-          )}
+
+            <button
+              className="btn btn-primary btn-lg w-100 py-3 fw-bold shadow-sm"
+              onClick={handlePredict}
+              disabled={loading || selectedSymptoms.length === 0}
+            >
+              {loading ? (
+                <span><i className="fas fa-spinner fa-spin me-2"></i> Running Ensemble Diagnosis...</span>
+              ) : (
+                <span><i className="fas fa-magic me-2"></i> Predict Medical Condition</span>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const PredictionResult = ({ result, selectedSymptoms, onBack }) => {
+    const [activeDetailTab, setActiveDetailTab] = useState('overview');
+
+    if (!result || !result.predictions || !result.predictions.length) {
+      return (
+        <div className="container my-5 text-center">
+          <h3>No prediction results available</h3>
+          <button className="btn btn-primary mt-3" onClick={onBack}>Back to Symptom Checker</button>
+        </div>
+      );
+    }
+
+    const top = result.predictions[0];
+
+    return (
+      <div className="container my-4">
+        <button className="btn btn-outline-secondary mb-3" onClick={onBack}>
+          <i className="fas fa-arrow-left me-1"></i> Back to Symptom Checker
+        </button>
+
+        <div className="card shadow border-0 mb-4">
+          <div className="card-header bg-success text-white p-3 d-flex justify-content-between align-items-center">
+            <h4 className="mb-0"><i className="fas fa-notes-medical me-2"></i>Diagnostic Results Summary</h4>
+            <span className="badge bg-light text-dark">Model: {result.model_used || 'Naive Bayes'}</span>
+          </div>
+          <div className="card-body p-4">
+            <div className="row align-items-center mb-4">
+              <div className="col-md-8">
+                <h2 className="text-primary fw-bold mb-1 text-capitalize">{top.disease}</h2>
+                <p className="lead text-muted mb-0">{top.description}</p>
+              </div>
+              <div className="col-md-4 text-center border-start">
+                <div className="display-4 fw-bold text-success">{top.probability}%</div>
+                <div className="text-uppercase text-muted small fw-bold">Prediction Confidence</div>
+              </div>
+            </div>
+
+            <ul className="nav nav-pills mb-3 border-bottom pb-2">
+              <li className="nav-item">
+                <button className={`nav-link ${activeDetailTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveDetailTab('overview')}><i className="fas fa-list-ol me-1"></i> Top Predictions</button>
+              </li>
+              <li className="nav-item">
+                <button className={`nav-link ${activeDetailTab === 'precautions' ? 'active' : ''}`} onClick={() => setActiveDetailTab('precautions')}><i className="fas fa-shield-alt me-1"></i> Precautions</button>
+              </li>
+              <li className="nav-item">
+                <button className={`nav-link ${activeDetailTab === 'diet' ? 'active' : ''}`} onClick={() => setActiveDetailTab('diet')}><i className="fas fa-utensils me-1"></i> Diet & Nutrition</button>
+              </li>
+              <li className="nav-item">
+                <button className={`nav-link ${activeDetailTab === 'meds' ? 'active' : ''}`} onClick={() => setActiveDetailTab('meds')}><i className="fas fa-pills me-1"></i> Medications</button>
+              </li>
+              <li className="nav-item">
+                <button className={`nav-link ${activeDetailTab === 'workout' ? 'active' : ''}`} onClick={() => setActiveDetailTab('workout')}><i className="fas fa-running me-1"></i> Exercises</button>
+              </li>
+            </ul>
+
+            <div className="p-3 bg-light rounded">
+              {activeDetailTab === 'overview' && (
+                <div>
+                  <h5 className="fw-bold mb-3">Differential Diagnosis Candidates</h5>
+                  {result.predictions.map((p, idx) => (
+                    <div key={p.disease} className="mb-3 p-3 bg-white rounded shadow-sm border">
+                      <div className="d-flex justify-content-between align-items-center mb-1">
+                        <span className="fw-bold text-dark text-capitalize">{idx + 1}. {p.disease}</span>
+                        <span className="badge bg-primary fs-6">{p.probability}%</span>
+                      </div>
+                      <div className="progress mb-2" style={{height: '8px'}}>
+                        <div className="progress-bar bg-primary" style={{width: `${p.probability}%`}}></div>
+                      </div>
+                      <small className="text-muted">{p.description}</small>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activeDetailTab === 'precautions' && (
+                <div>
+                  <h5 className="fw-bold mb-3"><i className="fas fa-user-shield text-warning me-2"></i>Recommended Precautions</h5>
+                  {top.precautions && top.precautions.length > 0 ? (
+                    <ul className="list-group">
+                      {top.precautions.map((item, idx) => (
+                        <li key={idx} className="list-group-item"><i className="fas fa-check-circle text-success me-2"></i>{item}</li>
+                      ))}
+                    </ul>
+                  ) : <p className="text-muted">Standard clinical precautions apply.</p>}
+                </div>
+              )}
+
+              {activeDetailTab === 'diet' && (
+                <div>
+                  <h5 className="fw-bold mb-3"><i className="fas fa-apple-alt text-danger me-2"></i>Dietary Guidance</h5>
+                  {top.diet && top.diet.length > 0 ? (
+                    <ul className="list-group">
+                      {top.diet.map((item, idx) => (
+                        <li key={idx} className="list-group-item"><i className="fas fa-leaf text-success me-2"></i>{item}</li>
+                      ))}
+                    </ul>
+                  ) : <p className="text-muted">Maintain a balanced diet and stay hydrated.</p>}
+                </div>
+              )}
+
+              {activeDetailTab === 'meds' && (
+                <div>
+                  <h5 className="fw-bold mb-3"><i className="fas fa-pills text-info me-2"></i>Suggested Medications (Consult Doctor)</h5>
+                  {top.medications && top.medications.length > 0 ? (
+                    <ul className="list-group">
+                      {top.medications.map((item, idx) => (
+                        <li key={idx} className="list-group-item"><i className="fas fa-prescription-bottle-alt text-primary me-2"></i>{item}</li>
+                      ))}
+                    </ul>
+                  ) : <p className="text-muted">Please consult a licensed clinician for prescriptions.</p>}
+                </div>
+              )}
+
+              {activeDetailTab === 'workout' && (
+                <div>
+                  <h5 className="fw-bold mb-3"><i className="fas fa-running text-success me-2"></i>Recommended Workouts & Activity</h5>
+                  {top.workouts && top.workouts.length > 0 ? (
+                    <ul className="list-group">
+                      {top.workouts.map((item, idx) => (
+                        <li key={idx} className="list-group-item"><i className="fas fa-dumbbell text-secondary me-2"></i>{item}</li>
+                      ))}
+                    </ul>
+                  ) : <p className="text-muted">Get adequate rest and engage in light activity as tolerated.</p>}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const PatientPortal = ({ user }) => {
+    const [requests, setRequests] = useState([]);
+    const [message, setMessage] = useState('');
+    const [sentStatus, setSentStatus] = useState('');
+
+    const patient = {
+      name: user ? user.name : 'Jane Doe',
+      age: 38,
+      bp: '120/80',
+      glucose: '95 mg/dL',
+      heartRate: '72 bpm',
+      steps: 7420
+    };
+
+    const handleSendMessage = (e) => {
+      e.preventDefault();
+      if (!message.trim()) return;
+      setRequests([...requests, { id: Date.now(), text: message, date: new Date().toLocaleTimeString(), status: 'Pending Review' }]);
+      setMessage('');
+      setSentStatus('Message sent to attending clinician!');
+      setTimeout(() => setSentStatus(''), 4000);
+    };
+
+    return (
+      <div className="container my-4">
+        <div className="card shadow border-0">
+          <div className="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center">
+            <h4 className="mb-0"><i className="fas fa-user-injured me-2 text-primary"></i>Patient Health Portal</h4>
+            <span className="badge bg-success">Active Account</span>
+          </div>
+          <div className="card-body p-4">
+            <div className="row g-4 mb-4">
+              <div className="col-md-3">
+                <div className="card bg-light p-3 text-center border-0 shadow-sm">
+                  <div className="text-muted small">Blood Pressure</div>
+                  <div className="fw-bold fs-5 text-primary">{patient.bp}</div>
+                </div>
+              </div>
+              <div className="col-md-3">
+                <div className="card bg-light p-3 text-center border-0 shadow-sm">
+                  <div className="text-muted small">Blood Glucose</div>
+                  <div className="fw-bold fs-5 text-success">{patient.glucose}</div>
+                </div>
+              </div>
+              <div className="col-md-3">
+                <div className="card bg-light p-3 text-center border-0 shadow-sm">
+                  <div className="text-muted small">Heart Rate</div>
+                  <div className="fw-bold fs-5 text-danger">{patient.heartRate}</div>
+                </div>
+              </div>
+              <div className="col-md-3">
+                <div className="card bg-light p-3 text-center border-0 shadow-sm">
+                  <div className="text-muted small">Wearable Steps</div>
+                  <div className="fw-bold fs-5 text-warning">{patient.steps}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card mb-4 border-0 bg-light p-3">
+              <h5 className="fw-bold"><i className="fas fa-comments me-2 text-primary"></i>Message Attending Doctor</h5>
+              {sentStatus && <div className="alert alert-success py-2">{sentStatus}</div>}
+              <form onSubmit={handleSendMessage}>
+                <div className="mb-2">
+                  <textarea
+                    className="form-control"
+                    rows="3"
+                    placeholder="Ask a question or request a prescription renewal..."
+                    value={message}
+                    onChange={e => setMessage(e.target.value)}
+                  ></textarea>
+                </div>
+                <button type="submit" className="btn btn-primary btn-sm px-4">Send Message</button>
+              </form>
+            </div>
+
+            {requests.length > 0 && (
+              <div>
+                <h5 className="fw-bold">Sent Messages History</h5>
+                <ul className="list-group">
+                  {requests.map(r => (
+                    <li key={r.id} className="list-group-item d-flex justify-content-between align-items-center">
+                      <div>
+                        <strong>{r.text}</strong>
+                        <div className="small text-muted">{r.date}</div>
+                      </div>
+                      <span className="badge bg-warning text-dark">{r.status}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const DoctorPortal = () => {
+    const [patients] = useState([
+      { id: 1, name: 'John Smith', age: 45, condition: 'Panic Disorder', risk: 'High', glucose: 145 },
+      { id: 2, name: 'Alice Johnson', age: 32, condition: 'Asthma', risk: 'Low', glucose: 92 },
+      { id: 3, name: 'Robert Lee', age: 61, condition: 'Diabetes Mellitus', risk: 'Medium', glucose: 168 }
+    ]);
+
+    return (
+      <div className="container my-4">
+        <div className="card shadow border-0">
+          <div className="card-header bg-dark text-white p-3">
+            <h4 className="mb-0"><i className="fas fa-user-md me-2 text-primary"></i>Clinician Portal</h4>
+          </div>
+          <div className="card-body p-4">
+            <h5 className="fw-bold mb-3">Assigned Patients Overview</h5>
+            <div className="table-responsive">
+              <table className="table table-hover align-middle">
+                <thead className="table-light">
+                  <tr>
+                    <th>Patient Name</th>
+                    <th>Age</th>
+                    <th>Primary Condition</th>
+                    <th>Glucose Level</th>
+                    <th>Readmission Risk</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {patients.map(p => (
+                    <tr key={p.id}>
+                      <td className="fw-bold">{p.name}</td>
+                      <td>{p.age}</td>
+                      <td>{p.condition}</td>
+                      <td>{p.glucose} mg/dL</td>
+                      <td>
+                        <span className={`badge ${p.risk === 'High' ? 'bg-danger' : p.risk === 'Medium' ? 'bg-warning text-dark' : 'bg-success'}`}>
+                          {p.risk} Risk
+                        </span>
+                      </td>
+                      <td>
+                        <button className="btn btn-outline-primary btn-sm me-1"><i className="fas fa-file-medical"></i> Chart</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const AuthScreen = ({ setUser, setActiveTab }) => {
+    const [isLogin, setIsLogin] = useState(true);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [role, setRole] = useState('patient');
+    const [error, setError] = useState('');
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      setError('');
+      try {
+        const endpoint = isLogin ? '/auth/login' : '/auth/register';
+        const res = await fetchAPI(endpoint, {
+          method: 'POST',
+          body: JSON.stringify({ email, password, role })
+        });
+        if (res.user) {
+          setUser(res.user);
+          setActiveTab('home');
+        } else if (res.error) {
+          setError(res.error);
+        }
+      } catch (err) {
+        setError('Authentication failed.');
+      }
+    };
+
+    return (
+      <div className="container my-5" style={{maxWidth: '450px'}}>
+        <div className="card shadow border-0 p-4">
+          <h3 className="text-center fw-bold mb-3">{isLogin ? 'Welcome Back' : 'Create Account'}</h3>
+          {error && <div className="alert alert-danger py-2">{error}</div>}
+          <form onSubmit={handleSubmit}>
+            <div className="mb-3">
+              <label className="form-label">Email Address</label>
+              <input type="email" className="form-control" value={email} onChange={e=>setEmail(e.target.value)} required />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Password</label>
+              <input type="password" className="form-control" value={password} onChange={e=>setPassword(e.target.value)} required />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Role</label>
+              <select className="form-select" value={role} onChange={e=>setRole(e.target.value)}>
+                <option value="patient">Patient</option>
+                <option value="doctor">Clinician / Doctor</option>
+              </select>
+            </div>
+            <button type="submit" className="btn btn-primary w-100 py-2 fw-bold">{isLogin ? 'Login' : 'Register'}</button>
+          </form>
+          <div className="text-center mt-3">
+            <button className="btn btn-link btn-sm" onClick={() => setIsLogin(!isLogin)}>
+              {isLogin ? "Don't have an account? Register" : "Already have an account? Login"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const Footer = () => (
+    <footer className="bg-dark text-white py-4 mt-auto">
+      <div className="container text-center">
+        <p className="mb-1 fw-bold">Clinica AI • Healthcare Platform</p>
+        <p className="small text-muted mb-0">Empowered by Machine Learning & HL7 FHIR Interoperability Standards</p>
+      </div>
+    </footer>
+  );
+
+  const App = () => {
+    const [activeTab, setActiveTab] = useState('home');
+    const [user, setUser] = useState(null);
+    const [predictionResult, setPredictionResult] = useState(null);
+    const [selectedSymptoms, setSelectedSymptoms] = useState([]);
+
+    const handleResult = (resultData, symptoms) => {
+      setPredictionResult(resultData);
+      setSelectedSymptoms(symptoms);
+      setActiveTab('result');
+    };
+
+    return (
+      <div className="d-flex flex-column min-vh-100">
+        <Navbar activeTab={activeTab} setActiveTab={setActiveTab} user={user} setUser={setUser} />
+        <main className="flex-grow-1">
+          {activeTab === 'home' && <Home setActiveTab={setActiveTab} />}
+          {activeTab === 'checker' && <SymptomChecker onResult={handleResult} />}
+          {activeTab === 'result' && <PredictionResult result={predictionResult} selectedSymptoms={selectedSymptoms} onBack={() => setActiveTab('checker')} />}
+          {activeTab === 'patient' && <PatientPortal user={user} />}
+          {activeTab === 'doctor' && <DoctorPortal />}
+          {activeTab === 'auth' && <AuthScreen setUser={setUser} setActiveTab={setActiveTab} />}
         </main>
+        <Footer />
       </div>
     );
   };
 
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

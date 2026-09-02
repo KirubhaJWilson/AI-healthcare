@@ -18,13 +18,20 @@ class DataLoader:
         self.workout_data = {}
 
     def load_symptom_data(self):
-        file_path = os.path.join(self.data_dir, 'disease_prediction.csv')
+        """Load the comprehensive 100-disease 230-symptom dataset"""
+        file_path = os.path.join(self.data_dir, 'Diseases_and_Symptoms_dataset.csv')
+        if not os.path.exists(file_path):
+            file_path = os.path.join(self.data_dir, 'disease_prediction.csv')
+
         if os.path.exists(file_path):
             self.symptom_data = pd.read_csv(file_path)
-            print(f"Symptom data loaded: {len(self.symptom_data)} rows")
+            # Standardize label column name
+            if 'diseases' in self.symptom_data.columns:
+                self.symptom_data.rename(columns={'diseases': 'label'}, inplace=True)
+            print(f"Symptom dataset loaded: {len(self.symptom_data)} rows, {len(self.symptom_data.columns)-1} symptoms")
             return self.symptom_data
         else:
-            print(f"Warning: {file_path} not found")
+            print(f"Warning: Dataset not found at {file_path}")
             return pd.DataFrame()
 
     def load_descriptions(self):
@@ -35,8 +42,9 @@ class DataLoader:
             for _, row in df.iterrows():
                 disease = str(row['Disease']).strip()
                 description = row['Description']
+                self.description_data[disease.lower()] = description
                 self.description_data[disease] = description
-            print(f"Descriptions loaded: {len(self.description_data)} diseases")
+            print(f"Descriptions loaded: {len(df)} diseases")
         return self.description_data
 
     def load_diets(self):
@@ -54,8 +62,9 @@ class DataLoader:
                         diet_list = [d.strip() for d in diet_str.split(',')]
                 except Exception:
                     diet_list = [d.strip() for d in diet_str.split(',')]
+                self.diet_data[disease.lower()] = diet_list
                 self.diet_data[disease] = diet_list
-            print(f"Diets loaded: {len(self.diet_data)} diseases")
+            print(f"Diets loaded: {len(df)} diseases")
         return self.diet_data
 
     def load_medications(self):
@@ -73,8 +82,9 @@ class DataLoader:
                         med_list = [m.strip() for m in med_str.split(',')]
                 except Exception:
                     med_list = [m.strip() for m in med_str.split(',')]
+                self.medication_data[disease.lower()] = med_list
                 self.medication_data[disease] = med_list
-            print(f"Medications loaded: {len(self.medication_data)} diseases")
+            print(f"Medications loaded: {len(df)} diseases")
         return self.medication_data
 
     def load_precautions(self):
@@ -88,8 +98,9 @@ class DataLoader:
                 for col in ['Precaution_1', 'Precaution_2', 'Precaution_3', 'Precaution_4']:
                     if col in row and pd.notna(row[col]) and str(row[col]).strip():
                         precautions.append(str(row[col]).strip())
+                self.precaution_data[disease.lower()] = precautions
                 self.precaution_data[disease] = precautions
-            print(f"Precautions loaded: {len(self.precaution_data)} diseases")
+            print(f"Precautions loaded: {len(df)} diseases")
         return self.precaution_data
 
     def load_workouts(self):
@@ -107,8 +118,9 @@ class DataLoader:
                         workout_list = [w.strip() for w in workout_str.split(',')]
                 except Exception:
                     workout_list = [w.strip() for w in workout_str.split(',')]
+                self.workout_data[disease.lower()] = workout_list
                 self.workout_data[disease] = workout_list
-            print(f"Workouts loaded: {len(self.workout_data)} diseases")
+            print(f"Workouts loaded: {len(df)} diseases")
         return self.workout_data
 
     def load_all(self):

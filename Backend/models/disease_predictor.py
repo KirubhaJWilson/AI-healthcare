@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
@@ -30,27 +29,21 @@ class DiseasePredictor:
     def _init_models(self):
         self.models = {
             'random_forest': RandomForestClassifier(
-                n_estimators=100,
-                max_depth=15,
+                n_estimators=50,
+                max_depth=12,
                 random_state=42,
                 n_jobs=-1
             ),
-            'naive_bayes': GaussianNB(),
-            'svm': SVC(
-                kernel='rbf',
-                C=10,
-                gamma='scale',
-                probability=True,
-                random_state=42
-            )
+            'naive_bayes': GaussianNB()
         }
 
     def load_data(self, symptom_data):
         if symptom_data is None or symptom_data.empty:
             raise ValueError("Symptom data is empty")
 
-        X = symptom_data.drop('label', axis=1)
-        y = symptom_data['label']
+        label_col = 'label' if 'label' in symptom_data.columns else symptom_data.columns[0]
+        X = symptom_data.drop(label_col, axis=1)
+        y = symptom_data[label_col]
 
         self.symptom_columns = X.columns.tolist()
 
@@ -88,11 +81,15 @@ class DiseasePredictor:
 
         feature_vector = {col: 0 for col in self.symptom_columns}
         for symptom in symptoms:
-            s_clean = symptom.strip().lower().replace(' ', '_')
-            if s_clean in feature_vector:
-                feature_vector[s_clean] = 1
-            elif symptom in feature_vector:
+            s_clean = symptom.strip().lower()
+            s_underscore = s_clean.replace(' ', '_')
+
+            if symptom in feature_vector:
                 feature_vector[symptom] = 1
+            elif s_clean in feature_vector:
+                feature_vector[s_clean] = 1
+            elif s_underscore in feature_vector:
+                feature_vector[s_underscore] = 1
 
         input_df = pd.DataFrame([feature_vector])
 
@@ -130,7 +127,7 @@ class DiseasePredictor:
         print("Models saved successfully")
 
     def load_models(self):
-        model_files = ['random_forest', 'naive_bayes', 'svm']
+        model_files = ['random_forest', 'naive_bayes']
         for name in model_files:
             filepath = os.path.join(self.models_dir, f'{name}.pkl')
             try:
